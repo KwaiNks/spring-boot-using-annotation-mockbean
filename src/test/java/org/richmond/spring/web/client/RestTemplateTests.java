@@ -7,6 +7,7 @@ import org.springframework.http.client.ClientHttpRequest;
 import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.http.client.ClientHttpResponse;
 import org.springframework.http.converter.HttpMessageConverter;
+import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.ResponseErrorHandler;
 import org.springframework.web.client.RestTemplate;
 
@@ -15,9 +16,11 @@ import java.net.URI;
 import java.util.Collections;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.springframework.http.HttpMethod.DELETE;
@@ -78,6 +81,28 @@ public class RestTemplateTests {
 
         // ACT
         template.delete("https://example.com");
+
+        // ASSERT
+        verify(response).close();
+    }
+
+    // Handling a 5xx error from the server
+
+    @Test
+    void errorHandling() throws Exception {
+
+        // ARRANGE
+
+        String url = "https://example.com";
+        mockSentRequest(GET, url);
+        mockResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR);
+        willThrow(new HttpServerErrorException(HttpStatus.INTERNAL_SERVER_ERROR))
+                .given(errorHandler).handleError(new URI(url), GET, response);
+
+        // ACT + ASSERT
+
+        assertThatExceptionOfType(HttpServerErrorException.class).isThrownBy(() ->
+                template.execute(url, GET, null, null));
 
         // ASSERT
         verify(response).close();
